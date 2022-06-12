@@ -153,7 +153,6 @@ def _create_dataset(names):
 
     # remove the first name
     names = names[1:]
-    st.success("Database created")
     df = pd.DataFrame(0, index=names, columns=names)
     df['total'] = df.sum(axis=1)
 

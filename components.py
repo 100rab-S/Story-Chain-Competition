@@ -73,10 +73,9 @@ def get_ordered_images(df):
     return images
 
 
-def _get_table(row):
-    """Display a small table of all votes received"""
+def _get_table(name, table):
+    """Display a small table of all votes received by a person"""
 
-    name, table = row
     df = pd.DataFrame(table)
     df.index = [name.title() for name in df.index]
     df = df.rename(columns={name: "Points voted"})
@@ -84,16 +83,17 @@ def _get_table(row):
     return df
 
 
-def leaderboard(image, row, rank):
+def leaderboard(image, df, rank):
     """Control the leaderboard section"""
 
-    name, data = row
+    row = df.iloc[rank - 1]
+    name, data = row.name, row
     # get data for the slider
     if "user_name" in st.session_state: # if the user has been detected
         # Update the default value of sliders by the vote the user has provided
         slid_value = int(data[st.session_state.user_name.lower()])
 
-    else: # if the user has not been detected yet. Set the defaults to 0
+    else:  # if the user has not been detected yet. Set the defaults to 0
         slid_value = 0
 
     img_col, _, text_col = st.columns([1, 0.2, 2])
@@ -104,12 +104,13 @@ def leaderboard(image, row, rank):
         st.subheader(name.title())
         st.write(f"Total: {data['total']}")
         vote = st.slider("Rate", 0, 5, slid_value, key=f"slider_{name}",
-                         help='Provide vote')
+                         help='Give vote', on_change=slider_callback,
+                         kwargs={"name": name, "df": df})
         st.write(f"Your vote {vote}")
 
         # if more details are required
         if st.button("Show more details", key=f"table_{name}"):
-            df = _get_table(row)
+            df = _get_table(name, data)
             st.write("Dataframe representing votes received from "
                      "different users")
             st.table(df)
@@ -127,11 +128,33 @@ def user_name_callback():
         st.session_state.user_name = st.session_state.name
 
 
+def slider_callback(name, df):
+    """Whenever the slider value changes this function is called"""
+
+    # if user has not been detected yet
+    if "user_name" not in st.session_state:
+        st.error("Choose your identity to vote.")
+        st.session_state[f"slider_{name}"] = 0  # set the slider back to zero
+
+    # if the user is voting himself
+    elif name == st.session_state.user_name.lower():
+        st.error("You cannot vote yourself!")
+        st.session_state[f"slider_{name}"] = 0  # set the slider to zero
+
+    # if the user has been detected. update the database with the new values
+    else:
+        df.loc[name, st.session_state.user_name.lower()] = \
+            st.session_state[f"slider_{name}"]
+        save_dataset(df)
+
+
 def _create_dataset(names):
     """Create a dataframe if it does not exist or is required to create new"""
 
+    # remove the first name
+    names = names[1:]
+    st.success("Database created")
     df = pd.DataFrame(0, index=names, columns=names)
-    df['anirban'] = [4, 2, 3] + [5]*4  # todo: remove
     df['total'] = df.sum(axis=1)
 
     return df
@@ -141,10 +164,12 @@ def load_dataset(names):
     """Load the dataset from the disk or create new dataset"""
 
     try:
-        df = pd.read_csv("/dataset/database.csv")
+        df = pd.read_csv("dataset/database.csv")
+        df = df.set_index("Unnamed: 0")
+        df['total'] = df.sum(axis=1)
 
     except FileNotFoundError:  # if no file then create a new file
-        # should only run once in lifetime
+        # should only run once in lifetime or to restart competition
         df = _create_dataset(names)
 
     # sort the dataframe based on the total vote
@@ -153,78 +178,56 @@ def load_dataset(names):
     return df
 
 
+def save_dataset(df):
+    """Save the dataset to the disk"""
+
+    # drop the total column
+    df.drop('total', axis=1, inplace=True)
+    df.to_csv("dataset/database.csv")
 
 
-def get_user_name(disable=False):
-    """Get the user name if he has not entered yet"""
-
-    names = [name.title() for name in NAMES]
-    # names.insert(0, "")
-    return st.selectbox("Please select yourself!",
-                        names,
-                        disabled=disable,
-                        help="You can select yourself only once. Please do not"
-                             " choose yourself with different identity")
-
-
-def update_slider():
-    """Update the slider information based on the user"""
-    pass
-
-
-def get_and_check_password():
-    """Get and check the entered password"""
-    pass
-
-
-def reset_database():
-    """Reset the database"""
-    st.success("Competition restarted")
-    pass
-
-
-def check_password():
-    """Returns `True` if the user had the correct password."""
-
-    def password_entered():
-        """Checks whether a password entered by the user is correct."""
-        if st.session_state["password"] == st.secrets["password"]:
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]  # don't store password
-        else:
-            st.session_state["password_correct"] = False
-
-    if "password_correct" not in st.session_state:
-        # First run, show input for password.
-        st.text_input("Password", type="password", on_change=password_entered,
-                      key="password")
-        return False
-    elif not st.session_state["password_correct"]:
-        # Password not correct, show input + error.
-        st.text_input("Password", type="password", on_change=password_entered,
-                      key="password")
-        st.error("😕 Incorrect Password")
-        return False
-    else:
-        # Password correct.
-        reset_database()
-        return True
-
-
-def restart_competition():
-    """Operation when restart competition button is clicked"""
-    restart = st.button("Restart Competition", key='restart_button')
-    if ("restart_button" in st.session_state):
-        st.session_state["restart"] = False
-        password = st.text_input("Enter the password")
-        st.write("hello")
-        if password == st.secrets["password"]:
-            st.session_state["restart"] = True
-            st.write("Hurray!")
-            st.write(password)
-
-        else:
-            st.write("wrong password")
+# def check_password():
+#     """Returns `True` if the user had the correct password."""
+#
+#     def password_entered():
+#         """Checks whether a password entered by the user is correct."""
+#         if st.session_state["password"] == st.secrets["password"]:
+#             st.session_state["password_correct"] = True
+#             del st.session_state["password"]  # don't store password
+#         else:
+#             st.session_state["password_correct"] = False
+#
+#     if "password_correct" not in st.session_state:
+#         # First run, show input for password.
+#         st.text_input("Password", type="password", on_change=password_entered,
+#                       key="password")
+#         return False
+#     elif not st.session_state["password_correct"]:
+#         # Password not correct, show input + error.
+#         st.text_input("Password", type="password", on_change=password_entered,
+#                       key="password")
+#         st.error("😕 Incorrect Password")
+#         return False
+#     else:
+#         # Password correct.
+#         reset_database()
+#         return True
+#
+#
+# def restart_competition():
+#     """Operation when restart competition button is clicked"""
+#     restart = st.button("Restart Competition", key='restart_button')
+#     if ("restart_button" in st.session_state):
+#         st.session_state["restart"] = False
+#         password = st.text_input("Enter the password")
+#         st.write("hello")
+#         if password == st.secrets["password"]:
+#             st.session_state["restart"] = True
+#             st.write("Hurray!")
+#             st.write(password)
+#
+#         else:
+#             st.write("wrong password")
 
 
 

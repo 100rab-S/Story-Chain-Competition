@@ -8,8 +8,8 @@ st.set_page_config(page_title="Akridata-DSA",
 
 # --Load Assets and define states
 won_anim_file_path = "images/won.json"
-NAMES = ["sourabh", "sabarish", "raghav", "rakshith", "anirban", "sudhir",
-         "rishabh"]
+NAMES = ["Select Name", "sourabh", "sabarish", "raghav", "rakshith", "anirban",
+         "sudhir", "rishabh"]
 
 if "user_name_chosen" not in st.session_state:
     st.session_state.user_name_chosen = False
@@ -19,8 +19,6 @@ if "greet_displayed" not in st.session_state:
 
 # database for the application
 df = cp.load_dataset(NAMES)
-
-# st.write(st.session_state)
 
 # ---Header Section
 with st.container():
@@ -47,7 +45,7 @@ with st.container():
         #     st.write(cp.check_password())
         # cp.check_password()
 
-# ---- desc and animation
+# ---- description and animation
 with st.container():
     left_column, right_column = st.columns(2)
     with left_column:
@@ -64,31 +62,24 @@ st.selectbox("Please select yourself", [name.title() for name in NAMES],
 
 # greet the user
 if ("user_name" in st.session_state) and (not st.session_state.greet_displayed):
-    st.write(f"Welcome {st.session_state.user_name}!")
     st.session_state.greet_displayed = True
+    st.write(f"Welcome {st.session_state.user_name}!")
+    for _ in range(2):
+        st.snow()
+        st.balloons()
 
-# st.write(st.session_state)
-# st.dataframe(df)
 
 # -- Ranking section
 with st.container():
     st.write("---")
     st.header("Leader-board")
 
-### Data for the sliders
-# cp.update_slider(df)
-
-# collect data from the user
-
-
 # get the images in the ranking order
 images = cp.get_ordered_images(df)
 
 # iterate through the images and plot
-for rank, (image, row) in enumerate(zip(images, df.iterrows()), 1):
+for rank, image in enumerate(images, 1):
     with st.container():
         st.write(f"Rank: {rank}")
-        cp.leaderboard(image, row, rank)
-
-# st.write(st.session_state)
+        cp.leaderboard(image, df, rank)
 
